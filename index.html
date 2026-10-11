@@ -6,168 +6,226 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#080b14">
 <title>SENTINEL AI</title>
+
 <style>
 *{box-sizing:border-box}
 body{
- margin:0;min-height:100vh;background:#080b14;color:#eaf2ff;
- font-family:Arial,sans-serif;display:flex;justify-content:center;
- align-items:center;text-align:center;padding:20px;
+  margin:0;min-height:100vh;background:#080b14;color:#eaf2ff;
+  font-family:Arial,sans-serif;display:flex;justify-content:center;
+  align-items:center;padding:20px;
 }
-.app{width:100%;max-width:440px}
-.logo{font-size:13px;letter-spacing:7px;color:#53d8ff}
+.app{width:100%;max-width:460px;text-align:center}
+.logo{font-size:12px;letter-spacing:7px;color:#53d8ff}
 h1{font-size:36px;letter-spacing:5px;margin:14px 0 5px}
-#status{color:#94a3b8;font-size:14px;margin:12px}
+#status{color:#94a3b8;font-size:13px;margin:12px}
 .orb{
- width:190px;height:190px;border-radius:50%;margin:35px auto;
- display:flex;align-items:center;justify-content:center;
- background:radial-gradient(circle,#164b70,#101b37 60%,#080b14 72%);
- border:1px solid #46cfff;box-shadow:0 0 45px #087da855;
+  width:175px;height:175px;border-radius:50%;margin:28px auto;
+  display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(circle,#164b70,#101b37 60%,#080b14 72%);
+  border:1px solid #46cfff;box-shadow:0 0 45px #087da855;
 }
 .orb button{
- width:110px;height:110px;border-radius:50%;border:1px solid #65dfff;
- background:#102a46;color:white;font-size:42px;cursor:pointer;
- box-shadow:0 0 25px #16a9ff55;
+  width:100px;height:100px;border-radius:50%;
+  border:1px solid #65dfff;background:#102a46;
+  color:white;font-size:38px;cursor:pointer;
+  box-shadow:0 0 25px #16a9ff55;
 }
 .orb.listening{animation:pulse 1s infinite}
 @keyframes pulse{50%{box-shadow:0 0 70px #00c8ff}}
-#answer{min-height:65px;line-height:1.5;font-size:17px;margin:15px 0}
+#answer{
+  min-height:65px;line-height:1.55;font-size:16px;
+  margin:18px 0;white-space:pre-wrap;overflow-wrap:anywhere;
+}
 input{
- width:100%;padding:15px;border-radius:12px;border:1px solid #263a56;
- background:#101827;color:white;font-size:16px;outline:none
+  width:100%;padding:15px;border-radius:12px;
+  border:1px solid #263a56;background:#101827;
+  color:white;font-size:16px;outline:none;
 }
 .row{display:flex;gap:8px;margin-top:10px}
 .row button{
- padding:13px;border:0;border-radius:10px;background:#126b9a;
- color:white;font-size:15px;cursor:pointer
+  padding:13px;border:0;border-radius:10px;
+  background:#126b9a;color:white;font-size:15px;cursor:pointer;
 }
 #send{flex:1}
-small{display:block;color:#64748b;margin-top:22px;line-height:1.5}
+button:disabled{opacity:.55}
+small{display:block;color:#64748b;margin-top:22px;line-height:1.6}
 </style>
 </head>
+
 <body>
 <div class="app">
- <div class="logo">PERSONAL AI</div>
- <h1>SENTINEL</h1>
- <div id="status">ASISTENTE EN LÍNEA</div>
+  <div class="logo">PERSONAL AI</div>
+  <h1>SENTINEL</h1>
+  <div id="status">ASISTENTE EN LÍNEA</div>
 
- <div class="orb" id="orb">
-  <button id="mic" aria-label="Hablar">🎙️</button>
- </div>
+  <div class="orb" id="orb">
+    <button id="mic" aria-label="Hablar">🎙️</button>
+  </div>
 
- <div id="answer">Hola, mi señor. Pulsa el micrófono para hablar conmigo.</div>
+  <div id="answer">Hola, mi señor. Soy SENTINEL. ¿En qué puedo ayudarte?</div>
 
- <input id="message" placeholder="Escribe un mensaje...">
- <div class="row">
-  <button id="send">Enviar mensaje</button>
-  <button id="stop">🔇</button>
- </div>
+  <input id="message" placeholder="Pregúntame cualquier cosa...">
 
- <small>SENTINEL · Tu asistente personal<br>
- Pulsa el micrófono y permite el acceso cuando te lo pida.</small>
+  <div class="row">
+    <button id="send">Enviar mensaje</button>
+    <button id="stop" aria-label="Detener voz">🔇</button>
+  </div>
+
+  <small>
+    SENTINEL AI · Tu asistente personal<br>
+    Necesitas conexión a internet para usar la IA.
+  </small>
 </div>
 
 <script>
-const statusText=document.getElementById("status");
-const answer=document.getElementById("answer");
-const orb=document.getElementById("orb");
-const message=document.getElementById("message");
-const mic=document.getElementById("mic");
+const API_URL =
+  "https://misty-brook-7184.julivargasr2706.workers.dev";
+
+const statusText = document.getElementById("status");
+const answer = document.getElementById("answer");
+const orb = document.getElementById("orb");
+const message = document.getElementById("message");
+const mic = document.getElementById("mic");
+const send = document.getElementById("send");
 
 const SpeechRecognition =
- window.SpeechRecognition || window.webkitSpeechRecognition;
+  window.SpeechRecognition || window.webkitSpeechRecognition;
 
-let recognition=null;
-let listening=false;
+let recognition = null;
+let listening = false;
+let busy = false;
 
-function speak(text){
- if(!("speechSynthesis" in window)){
-  statusText.textContent="Voz no disponible en este navegador";
-  return;
- }
- speechSynthesis.cancel();
- const utterance=new SpeechSynthesisUtterance(text);
- utterance.lang="es-CO";
- utterance.rate=1.05;
- const voices=speechSynthesis.getVoices();
- const voice=voices.find(v=>v.lang==="es-CO") ||
-             voices.find(v=>v.lang.startsWith("es"));
- if(voice) utterance.voice=voice;
- speechSynthesis.speak(utterance);
+function speak(text) {
+  if (!("speechSynthesis" in window)) return;
+
+  speechSynthesis.cancel();
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "es-CO";
+  utterance.rate = 1.0;
+
+  const voices = speechSynthesis.getVoices();
+  const voice =
+    voices.find(v => v.lang.toLowerCase() === "es-co") ||
+    voices.find(v => v.lang.toLowerCase().startsWith("es"));
+
+  if (voice) utterance.voice = voice;
+
+  speechSynthesis.speak(utterance);
 }
 
-function respond(text){
- const t=text.toLowerCase().trim();
- let reply="Todavía estoy aprendiendo a responder eso. Prueba saludarme o preguntarme la hora.";
+async function respond(text) {
+  const question = text.trim();
+  if (!question || busy) return;
 
- if(/\b(hola|buenas|hey)\b/.test(t))
-  reply="Hola, mi señor. Soy SENTINEL. ¿En qué puedo ayudarte?";
- else if(t.includes("tu nombre") || t.includes("quien eres"))
-  reply="Soy SENTINEL, tu asistente personal.";
- else if(t.includes("hora"))
-  reply="La hora de tu teléfono es "+new Date().toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"})+".";
- else if(t.includes("fecha") || t.includes("día"))
-  reply="Hoy es "+new Date().toLocaleDateString("es-CO",{weekday:"long",day:"numeric",month:"long"})+".";
- else if(t.includes("gracias"))
-  reply="Siempre a tu servicio, mi señor.";
- else if(t.includes("abre google") || t.includes("abrir google"))
-  reply="Puedo abrir Google en una pestaña nueva.";
- else if(t.includes("como estas") || t.includes("cómo estás"))
-  reply="Estoy en línea y listo para ayudarte.";
+  busy = true;
+  send.disabled = true;
+  statusText.textContent = "CONECTANDO CON LA IA...";
+  answer.textContent = "SENTINEL está pensando...";
 
- answer.textContent=reply;
- speak(reply);
+  try {
+    const response = await fetch(API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        message: question
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Error del servidor");
+    }
+
+    const reply = data.reply;
+
+    if (typeof reply !== "string" || !reply.trim()) {
+      throw new Error("La IA no devolvió una respuesta");
+    }
+
+    answer.textContent = reply;
+    speak(reply);
+
+  } catch (error) {
+    console.error(error);
+    answer.textContent =
+      "No pude conectar con la IA. Comprueba tu internet e inténtalo de nuevo.";
+  } finally {
+    busy = false;
+    send.disabled = false;
+    statusText.textContent = "ASISTENTE EN LÍNEA";
+  }
 }
 
-function startListening(){
- if(!SpeechRecognition){
-  statusText.textContent="Prueba Google Chrome en Android";
-  answer.textContent="Este navegador no ofrece reconocimiento de voz. Abre esta app en Chrome.";
-  return;
- }
- if(listening && recognition){
-  recognition.stop();
-  return;
- }
- recognition=new SpeechRecognition();
- recognition.lang="es-CO";
- recognition.interimResults=false;
- recognition.maxAlternatives=3;
- recognition.onstart=()=>{
-  listening=true;
-  orb.classList.add("listening");
-  statusText.textContent="TE ESTOY ESCUCHANDO...";
-  answer.textContent="Habla ahora...";
- };
- recognition.onresult=(event)=>{
-  const text=event.results[0][0].transcript;
-  message.value=text;
-  answer.textContent="Te escuché: "+text;
-  respond(text);
- };
- recognition.onerror=(event)=>{
-  answer.textContent="No pude reconocer la voz ("+event.error+"). Intenta otra vez.";
- };
- recognition.onend=()=>{
-  listening=false;
-  orb.classList.remove("listening");
-  statusText.textContent="ASISTENTE EN LÍNEA";
- };
- recognition.start();
+function startListening() {
+  if (!SpeechRecognition) {
+    answer.textContent =
+      "El reconocimiento de voz no está disponible en este navegador. Prueba Google Chrome en Android.";
+    return;
+  }
+
+  if (listening && recognition) {
+    recognition.stop();
+    return;
+  }
+
+  recognition = new SpeechRecognition();
+  recognition.lang = "es-CO";
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+
+  recognition.onstart = () => {
+    listening = true;
+    orb.classList.add("listening");
+    statusText.textContent = "TE ESTOY ESCUCHANDO...";
+    answer.textContent = "Habla ahora...";
+  };
+
+  recognition.onresult = event => {
+    const text = event.results[0][0].transcript;
+    message.value = text;
+    respond(text);
+  };
+
+  recognition.onerror = event => {
+    answer.textContent =
+      "No pude reconocer la voz (" + event.error + "). Puedes escribir tu pregunta.";
+  };
+
+  recognition.onend = () => {
+    listening = false;
+    orb.classList.remove("listening");
+    if (!busy) statusText.textContent = "ASISTENTE EN LÍNEA";
+  };
+
+  try {
+    recognition.start();
+  } catch (error) {
+    answer.textContent = "Espera un momento e inténtalo otra vez.";
+  }
 }
 
-mic.addEventListener("click",startListening);
-document.getElementById("send").addEventListener("click",()=>{
- const text=message.value.trim();
- if(text) respond(text);
+mic.addEventListener("click", startListening);
+
+send.addEventListener("click", () => {
+  respond(message.value);
 });
-message.addEventListener("keydown",e=>{
- if(e.key==="Enter") document.getElementById("send").click();
+
+message.addEventListener("keydown", event => {
+  if (event.key === "Enter") respond(message.value);
 });
-document.getElementById("stop").addEventListener("click",()=>{
- speechSynthesis.cancel();
- if(recognition) recognition.stop();
+
+document.getElementById("stop").addEventListener("click", () => {
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  if (recognition && listening) recognition.stop();
 });
-if("speechSynthesis" in window) speechSynthesis.getVoices();
+
+if ("speechSynthesis" in window) {
+  speechSynthesis.getVoices();
+}
 </script>
 </body>
 </html>
